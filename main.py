@@ -70,4 +70,4 @@ Problem:
 
 Only derive using the axioms. If impossible, reply:
 "Undecidable with given axioms.""
-"
+"""
