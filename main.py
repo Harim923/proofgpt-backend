@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from dotenv import load_dotenv
-import os, time
+import os, time, requests
 from collections import defaultdict
 
 load_dotenv()
@@ -31,20 +31,33 @@ async def rate_limiter(request: Request, call_next):
     request_log[ip].append(now)
     return await call_next(request)
 
+AXIOM_URLS = {
+    "hilbert": "https://raw.githubusercontent.com/Harim923/Axiom-Atlas/main/axioms/hilbert.json",
+    "euclid": "https://raw.githubusercontent.com/Harim923/Axiom-Atlas/main/axioms/euclid.json",
+    "tarski": "https://raw.githubusercontent.com/Harim923/Axiom-Atlas/main/axioms/tarski.json"
+}
+
+def fetch_axioms(axiom_set):
+    url = AXIOM_URLS.get(axiom_set)
+    if not url:
+        return []
+    res = requests.get(url)
+    data = res.json()
+    if "groups" in data:
+        axioms = [a["statement"] for g in data["groups"] for a in g["axioms"]]
+    else:
+        axioms = [a["statement"] for a in data["axioms"]]
+    return axioms
+
 @app.post("/api/proof")
 async def get_proof(req: Request):
     body = await req.json()
     problem = body.get("problem", "").strip()
     axiomSet = body.get("axiomSet", "").lower()
 
-    # 예시용 Axiom
-    axioms = [
-        "Axiom 1: Any two distinct points determine a unique line.",
-        "Axiom 2: There exists at least three non-collinear points."
-    ] if axiomSet == "hilbert" else [
-        "Axiom A: Placeholder axiom for Euclid",
-        "Axiom B: Placeholder axiom for Tarski"
-    ]
+    axioms = fetch_axioms(axiomSet)
+    if not axioms:
+        raise HTTPException(status_code=400, detail="Invalid or missing axiom set")
 
     prompt = build_prompt(problem, axioms)
 
@@ -69,5 +82,5 @@ Problem:
 ---
 
 Only derive using the axioms. If impossible, reply:
-"Undecidable with given axioms.""
+\"Undecidable with given axioms.\"
 """
